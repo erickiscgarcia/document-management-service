@@ -1,0 +1,25 @@
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/documents
+    username: user
+    password: p4ssw0rd!
+
+  sql:
+    init:
+      mode: always
+
+  main:
+    web-application-type: reactive
+
+  application:
+    name: document-management-service
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: minio
+  secret-key: minio123
+  bucket: documents-bucket
+
+logging:
+  level:
+    org.springframework.r2dbc: DEBUG
