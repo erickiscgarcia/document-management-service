@@ -1,9 +1,8 @@
 package com.garbed.document_management_service.repository;
 
 import com.garbed.document_management_service.entity.Document;
-import org.springframework.data.repository.reactive.ReactiveCrudRepository;
-
 import java.util.UUID;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 
 /**
  * DocumentRepository interface used to define DocumentRepository service contracts.

@@ -1,6 +1,7 @@
 package com.garbed.document_management_service.entity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,7 +34,7 @@ public class Document {
   private String documentName;
 
   @Column("tags")
-  private String tags;
+  private List<String> tags;
 
   @Column("minio_path")
   private String minioPath;

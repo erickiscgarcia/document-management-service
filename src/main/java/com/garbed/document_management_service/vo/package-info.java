@@ -1,6 +1,6 @@
 /**
- * The com.garbed.document_management_service.vo package contains classes that implement the
- * visual objects of the system.
+ * The com.garbed.document_management_service.vo package contains classes that implement the visual
+ * objects of the system.
  *
  * @since 1.0
  */
