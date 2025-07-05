@@ -1,7 +1,5 @@
 package com.garbed.document_management_service.vo;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -9,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * DocumentVo class used for requests/response regarding DocumentResponseDto in the system.
+ * DTO used for incoming document data when uploading a document.
  *
  * @author Erick Garcia
  * @version 1.0.0
@@ -17,17 +15,21 @@ import lombok.Data;
  */
 @Data
 @Builder
-public class DocumentVo {
+public class DocumentResponse {
+
   private UUID id;
 
-  @NotBlank private String user;
+  private String user;
 
-  @NotBlank private String documentName;
+  private String documentName;
 
-  @NotNull private List<String> tags;
+  private List<String> tags;
 
   private String minioPath;
+
   private long fileSize;
+
   private String fileType;
+
   private LocalDateTime createdAt;
 }

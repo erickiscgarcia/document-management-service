@@ -19,9 +19,9 @@ import org.springframework.data.relational.core.mapping.Table;
  * @since 6/25/25
  */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder(toBuilder = true)
 @Table("documents")
 public class Document {
 
