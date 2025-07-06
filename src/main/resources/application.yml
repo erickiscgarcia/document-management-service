@@ -1,3 +1,9 @@
+info:
+  app:
+    name: Document Management Service
+    description: Reactive service for uploading and managing PDF documents
+    version: 1.0.0
+
 spring:
   r2dbc:
     url: r2dbc:postgresql://localhost:5432/documents
@@ -23,3 +29,22 @@ minio:
 logging:
   level:
     org.springframework.r2dbc: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+  api-docs:
+    path: /v3/api-docs

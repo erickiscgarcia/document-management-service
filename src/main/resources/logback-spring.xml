@@ -19,9 +19,6 @@
             <fileNamePattern>${LOG_PATH}/document-management-service-%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>10</maxHistory>
         </rollingPolicy>
-        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
-            <maxFileSize>10MB</maxFileSize>
-        </triggeringPolicy>
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
