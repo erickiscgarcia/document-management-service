@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.garbed.document_management_service.configuration.MinioConfig;
 import com.garbed.document_management_service.entity.Document;
+import com.garbed.document_management_service.exception.MaxFileSizeException;
 import com.garbed.document_management_service.mapper.DocumentMapper;
 import com.garbed.document_management_service.repository.DocumentRepository;
 import com.garbed.document_management_service.util.CustomPage;
@@ -98,7 +99,7 @@ class DocumentServiceImplTest {
   }
 
   @Test
-  void uploadDocumentUpdateExistingDocument() throws Exception {
+  void uploadDocumentUpdate() throws Exception {
     String metadataStringRequest =
         """
       {
@@ -111,6 +112,7 @@ class DocumentServiceImplTest {
     FilePart filePart = mock(FilePart.class);
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_PDF);
+    headers.setContentLength(12345L);
     when(filePart.headers()).thenReturn(headers);
 
     File tempFile = File.createTempFile("upload-", ".pdf");
@@ -146,7 +148,7 @@ class DocumentServiceImplTest {
   }
 
   @Test
-  void uploadDocumentCreateNewDocumentWhenNotExists() throws Exception {
+  void uploadDocument() throws Exception {
     String metadataStringRequest =
         """
       {
@@ -176,6 +178,7 @@ class DocumentServiceImplTest {
 
     FilePart filePart = mock(FilePart.class);
     HttpHeaders headers = new HttpHeaders();
+    headers.setContentLength(12345L);
     headers.setContentType(MediaType.APPLICATION_PDF);
     when(filePart.headers()).thenReturn(headers);
 
@@ -205,6 +208,31 @@ class DocumentServiceImplTest {
     Mono<DocumentResponse> result = service.uploadDocument(metadataStringRequest, filePart);
 
     StepVerifier.create(result).expectNext(newResponse).verifyComplete();
+  }
+
+  @Test
+  void uploadTooLargeFile() {
+    String metadataStringRequest =
+        """
+          {
+            "user": "erick",
+            "documentName": "cv.pdf",
+            "tags": ["java"]
+          }
+      """;
+    FilePart mockFile = mock(FilePart.class);
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentLength(600 * 1024 * 1024L); // 600MB
+    when(mockFile.headers()).thenReturn(headers);
+
+    Mono<DocumentResponse> result = service.uploadDocument(metadataStringRequest, mockFile);
+
+    StepVerifier.create(result)
+        .expectErrorMatches(
+            e ->
+                e instanceof MaxFileSizeException
+                    && e.getMessage().contains("File size exceeds the allowed 500MB limit."))
+        .verify();
   }
 
   @Test

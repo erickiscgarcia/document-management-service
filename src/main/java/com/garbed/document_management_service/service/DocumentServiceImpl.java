@@ -4,10 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.garbed.document_management_service.configuration.MinioConfig;
 import com.garbed.document_management_service.entity.Document;
-import com.garbed.document_management_service.exception.FileUploadException;
-import com.garbed.document_management_service.exception.InvalidMetadataException;
-import com.garbed.document_management_service.exception.MinioUploadException;
-import com.garbed.document_management_service.exception.ResourceNotFoundException;
+import com.garbed.document_management_service.exception.*;
 import com.garbed.document_management_service.mapper.DocumentMapper;
 import com.garbed.document_management_service.repository.DocumentRepository;
 import com.garbed.document_management_service.util.CustomPage;
@@ -47,34 +44,17 @@ public class DocumentServiceImpl implements DocumentService {
   private final MinioConfig minioConfig;
   private final ObjectMapper objectMapper;
 
-  /**
-   * Converts a list of tags into a PostgreSQL-compatible text array string.
-   *
-   * <p>For example, a list {@code ["java", "dev"]} will be converted to {@code {"java","dev"}}.
-   * Returns {@code null} if the list is {@code null} or empty.
-   *
-   * @param tags the list of tags to convert
-   * @return a PostgreSQL-compatible text array string or {@code null} if the input is {@code null}
-   *     or empty
-   */
-  private static String convertTagsToPostgresArray(List<String> tags) {
-    if (tags == null || tags.isEmpty()) {
-      return null;
-    }
-    return tags.stream()
-        .map(
-            tag ->
-                SystemConstants.Pg.ARRAY_QUOTE_START
-                    + tag.replace(SystemConstants.Pg.ARRAY_QUOTE_START, SystemConstants.Pg.ARRAY_QUOTE_END)
-                    + SystemConstants.Pg.ARRAY_QUOTE_START)
-        .collect(
-            Collectors.joining(
-                SystemConstants.Pg.ARRAY_SEPARATOR, SystemConstants.Pg.ARRAY_START, SystemConstants.Pg.ARRAY_END));
-  }
-
+  @Override
   public Mono<DocumentResponse> uploadDocument(String metadataJson, FilePart filePart) {
-    return Mono.fromCallable(() -> parseMetadata(metadataJson))
-        .flatMap(parsed -> processUpload(parsed, filePart));
+    DocumentRequest metadata = parseMetadata(metadataJson);
+    long contentLength = filePart.headers().getContentLength();
+
+    if (contentLength > SystemConstants.Util.MAX_FILE_SIZE_BYTES || contentLength <= 0) {
+      return Mono.error(
+          new MaxFileSizeException(SystemConstants.Exception.MAX_FILE_SIZE_EXCEPTION));
+    }
+
+    return processUpload(metadata, filePart);
   }
 
   @Override
@@ -212,6 +192,12 @@ public class DocumentServiceImpl implements DocumentService {
     String filename = metadata.getDocumentName();
     String path = user + SystemConstants.Util.SLASH_CHAR + filename;
 
+    long contentLength = filePart.headers().getContentLength();
+
+    if (contentLength > SystemConstants.Util.MAX_FILE_SIZE_BYTES || contentLength <= 0) {
+      throw new MaxFileSizeException(SystemConstants.Exception.MAX_FILE_SIZE_EXCEPTION);
+    }
+
     return repository
         .findByUserAndDocumentName(user, filename)
         .switchIfEmpty(Mono.defer(() -> Mono.just(new Document())))
@@ -222,7 +208,8 @@ public class DocumentServiceImpl implements DocumentService {
               return Mono.fromCallable(
                       () ->
                           File.createTempFile(
-                              SystemConstants.File.UPLOAD_PREFIX, SystemConstants.File.PDF_EXTENSION))
+                              SystemConstants.File.UPLOAD_PREFIX,
+                              SystemConstants.File.PDF_EXTENSION))
                   .subscribeOn(Schedulers.boundedElastic())
                   .flatMap(
                       tempFile ->
@@ -258,7 +245,7 @@ public class DocumentServiceImpl implements DocumentService {
    * @throws MinioUploadException if MinIO upload fails
    */
   private Document saveToMinioAndBuildEntity(
-      DocumentRequest metadata, FilePart filePart, java.io.File tempFile, String path) {
+      DocumentRequest metadata, FilePart filePart, File tempFile, String path) {
 
     long fileSize = tempFile.length();
     String contentType =
@@ -285,6 +272,18 @@ public class DocumentServiceImpl implements DocumentService {
       }
     }
 
+    return this.buildDocument(metadata, path, fileSize, contentType);
+  }
+
+  /**
+   * @param metadata
+   * @param path
+   * @param fileSize
+   * @param contentType
+   * @return
+   */
+  private Document buildDocument(
+      DocumentRequest metadata, String path, long fileSize, String contentType) {
     return Document.builder()
         .user(metadata.getUser())
         .documentName(metadata.getDocumentName())
@@ -294,5 +293,33 @@ public class DocumentServiceImpl implements DocumentService {
         .fileType(contentType)
         .createdAt(LocalDateTime.now())
         .build();
+  }
+
+  /**
+   * Converts a list of tags into a PostgreSQL-compatible text array string.
+   *
+   * <p>For example, a list {@code ["java", "dev"]} will be converted to {@code {"java","dev"}}.
+   * Returns {@code null} if the list is {@code null} or empty.
+   *
+   * @param tags the list of tags to convert
+   * @return a PostgreSQL-compatible text array string or {@code null} if the input is {@code null}
+   *     or empty
+   */
+  private static String convertTagsToPostgresArray(List<String> tags) {
+    if (tags == null || tags.isEmpty()) {
+      return null;
+    }
+    return tags.stream()
+        .map(
+            tag ->
+                SystemConstants.Pg.ARRAY_QUOTE_START
+                    + tag.replace(
+                        SystemConstants.Pg.ARRAY_QUOTE_START, SystemConstants.Pg.ARRAY_QUOTE_END)
+                    + SystemConstants.Pg.ARRAY_QUOTE_START)
+        .collect(
+            Collectors.joining(
+                SystemConstants.Pg.ARRAY_SEPARATOR,
+                SystemConstants.Pg.ARRAY_START,
+                SystemConstants.Pg.ARRAY_END));
   }
 }
