@@ -6,22 +6,18 @@ info:
 
 spring:
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/documents
+    url: r2dbc:postgresql://postgres:5432/documents
     username: user
-    password: p4ssw0rd!
-
+    password: password
   sql:
     init:
-      mode: always
-
-  main:
-    web-application-type: reactive
+      mode: never
 
   application:
     name: document-management-service
 
 minio:
-  endpoint: http://localhost:9000
+  endpoint: http://minio:9000
   access-key: minio
   secret-key: minio123
   bucket: documents-bucket
@@ -51,4 +47,3 @@ springdoc:
 
 app:
   max-file-size-bytes: 524288000
-
