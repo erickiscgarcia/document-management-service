@@ -22,13 +22,13 @@ public final class SystemConstants {
     public static final String DOCUMENT_NOT_FOUND = "Document not found.";
     public static final String MINIO_UPLOAD_EXCEPTION = "Error uploading file to MinIO.";
     public static final String FILE_UPLOAD_EXCEPTION = "Error reading file stream.";
-    public static final String MAX_FILE_SIZE_EXCEPTION = "File size exceeds the allowed 500MB limit.";
+    public static final String MAX_FILE_SIZE_EXCEPTION =
+        "Invalid file size. Must be greater than 0 and less than the allowed limit.";
   }
 
   public static final class Util {
     public static final String PERCENTAGE_CHAR = "%";
     public static final String SLASH_CHAR = "/";
-    public static final long MAX_FILE_SIZE_BYTES = 500L * 1024 * 1024; // 500MB
   }
 
   public static final class File {

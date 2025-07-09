@@ -27,7 +27,8 @@ public interface DocumentRepository extends ReactiveCrudRepository<Document, UUI
    * @param offset starting position of the page
    * @return Flux of matching Document entities
    */
-  @Query("""
+  @Query(
+      """
     SELECT * FROM documents
     WHERE (:user IS NULL OR user_id ILIKE :user)
       AND (:documentName IS NULL OR document_name ILIKE :documentName)
@@ -36,7 +37,7 @@ public interface DocumentRepository extends ReactiveCrudRepository<Document, UUI
     LIMIT :limit OFFSET :offset
     """)
   Flux<Document> searchDocuments(
-          String user, String documentName, String tags, int limit, int offset);
+      String user, String documentName, String tags, int limit, int offset);
 
   /**
    * Counts the total number of documents matching optional filters for user, document name, and
@@ -57,5 +58,4 @@ public interface DocumentRepository extends ReactiveCrudRepository<Document, UUI
   Mono<Long> countDocuments(String user, String documentName, String tags);
 
   Mono<Document> findByUserAndDocumentName(String user, String documentName);
-
 }

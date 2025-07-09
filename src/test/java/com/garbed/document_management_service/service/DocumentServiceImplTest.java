@@ -2,6 +2,7 @@ package com.garbed.document_management_service.service;
 
 import static org.mockito.Mockito.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.garbed.document_management_service.configuration.MinioConfig;
 import com.garbed.document_management_service.entity.Document;
@@ -14,6 +15,7 @@ import com.garbed.document_management_service.vo.DocumentResponse;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,7 @@ import org.mockito.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -75,6 +78,8 @@ class DocumentServiceImplTest {
             .fileType("application/pdf")
             .createdAt(LocalDateTime.now())
             .build();
+
+    ReflectionTestUtils.setField(service, "maxFileSizeBytes", 500 * 1024 * 1024L); // 500MB
   }
 
   @Test
@@ -116,7 +121,16 @@ class DocumentServiceImplTest {
     when(filePart.headers()).thenReturn(headers);
 
     File tempFile = File.createTempFile("upload-", ".pdf");
-    when(filePart.transferTo(any(File.class))).thenReturn(Mono.empty());
+    doAnswer(
+            invocation -> {
+              File file = invocation.getArgument(0);
+              try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write("dummy content".getBytes());
+              }
+              return Mono.empty();
+            })
+        .when(filePart)
+        .transferTo(any(File.class));
 
     Document existingDoc =
         Document.builder()
@@ -171,19 +185,28 @@ class DocumentServiceImplTest {
             .user("erick")
             .documentName("nuevo.pdf")
             .tags(List.of("dev"))
-            .fileSize(12345L)
+            .fileSize(125L)
             .fileType("application/pdf")
             .createdAt(LocalDateTime.now())
             .build();
 
     FilePart filePart = mock(FilePart.class);
     HttpHeaders headers = new HttpHeaders();
-    headers.setContentLength(12345L);
+    headers.setContentLength(125L);
     headers.setContentType(MediaType.APPLICATION_PDF);
     when(filePart.headers()).thenReturn(headers);
 
     File tempFile = File.createTempFile("upload-", ".pdf");
-    when(filePart.transferTo(any(File.class))).thenReturn(Mono.empty());
+    doAnswer(
+            invocation -> {
+              File file = invocation.getArgument(0);
+              try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write("dummy content".getBytes());
+              }
+              return Mono.empty();
+            })
+        .when(filePart)
+        .transferTo(any(File.class));
 
     when(minioConfig.getBucket()).thenReturn("documents-bucket");
     when(repository.findByUserAndDocumentName("erick", "nuevo.pdf")).thenReturn(Mono.empty());
@@ -211,19 +234,23 @@ class DocumentServiceImplTest {
   }
 
   @Test
-  void uploadTooLargeFile() {
+  void uploadTooLargeFile() throws JsonProcessingException {
     String metadataStringRequest =
         """
-          {
-            "user": "erick",
-            "documentName": "cv.pdf",
-            "tags": ["java"]
-          }
-      """;
+              {
+                "user": "erick",
+                "documentName": "cv.pdf",
+                "tags": ["java"]
+              }
+          """;
+
     FilePart mockFile = mock(FilePart.class);
-    HttpHeaders headers = new HttpHeaders();
-    headers.setContentLength(600 * 1024 * 1024L); // 600MB
-    when(mockFile.headers()).thenReturn(headers);
+
+    when(mockFile.transferTo(any(File.class))).thenReturn(Mono.empty());
+
+    when(objectMapper.readValue(any(String.class), eq(DocumentRequest.class)))
+        .thenReturn(documentRequest);
+    when(repository.findByUserAndDocumentName("erick", "cv.pdf")).thenReturn(Mono.empty());
 
     Mono<DocumentResponse> result = service.uploadDocument(metadataStringRequest, mockFile);
 
@@ -231,7 +258,9 @@ class DocumentServiceImplTest {
         .expectErrorMatches(
             e ->
                 e instanceof MaxFileSizeException
-                    && e.getMessage().contains("File size exceeds the allowed 500MB limit."))
+                    && e.getMessage()
+                        .contains(
+                            "Invalid file size. Must be greater than 0 and less than the allowed limit."))
         .verify();
   }
 
