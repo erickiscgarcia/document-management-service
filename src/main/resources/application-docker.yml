@@ -6,9 +6,9 @@ info:
 
 spring:
   r2dbc:
-    url: r2dbc:postgresql://postgres:5432/documents
-    username: user
-    password: password
+    url: r2dbc:postgresql://postgres:5432/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   sql:
     init:
       mode: never
@@ -18,9 +18,10 @@ spring:
 
 minio:
   endpoint: http://minio:9000
-  access-key: minio
-  secret-key: minio123
-  bucket: documents-bucket
+  access-key: ${MINIO_ACCESS_KEY}
+  public-url: ${MINIO_PUBLIC_ENDPOINT}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET}
 
 logging:
   level:

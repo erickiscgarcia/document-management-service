@@ -6,9 +6,9 @@ services:
     container_name: postgres-db
     restart: always
     environment:
-      POSTGRES_DB: documents
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./src/main/resources/db/init:/docker-entrypoint-initdb.d
@@ -22,8 +22,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -36,12 +36,15 @@ services:
     entrypoint: >
       /bin/sh -c "
         sleep 5;
-        mc alias set local http://minio:9000 minio minio123;
-        mc mb -p local/documents-bucket;
-        mc anonymous set download local/documents-bucket;
+        mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+        mc mb -p local/${MINIO_BUCKET};
+        mc anonymous set download local/${MINIO_BUCKET};
         exit 0;
       "
-
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
 
   app:
     build:
@@ -51,10 +54,22 @@ services:
     depends_on:
       - postgres
       - minio
+    env_file:
+      - .env
     environment:
-      SPRING_PROFILES_ACTIVE: docker
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
     ports:
       - "8080:8080"
+
+  minio-proxy:
+    image: nginx:alpine
+    container_name: minio-proxy
+    ports:
+      - "9002:80"
+    depends_on:
+      - minio
+    volumes:
+      - ./nginx/minio-proxy.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   pgdata:

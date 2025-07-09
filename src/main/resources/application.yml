@@ -6,9 +6,9 @@ info:
 
 spring:
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/documents
-    username: user
-    password: p4ssw0rd!
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   sql:
     init:
@@ -21,10 +21,11 @@ spring:
     name: document-management-service
 
 minio:
-  endpoint: http://localhost:9000
-  access-key: minio
-  secret-key: minio123
-  bucket: documents-bucket
+  endpoint: ${MINIO_ENDPOINT}
+  public-url: ${MINIO_PUBLIC_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET}
 
 logging:
   level:
@@ -50,5 +51,5 @@ springdoc:
     path: /v3/api-docs
 
 app:
-  max-file-size-bytes: 524288000
+  max-file-size-bytes: ${MAX_FILE_SIZE_BYTES}
 

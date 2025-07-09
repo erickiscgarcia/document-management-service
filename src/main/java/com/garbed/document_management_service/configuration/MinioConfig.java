@@ -20,6 +20,9 @@ public class MinioConfig {
   @Value("${minio.endpoint}")
   private String endpoint;
 
+  @Value("${minio.public-url}")
+  private String publicUrl;
+
   @Value("${minio.access-key}")
   private String accessKey;
 

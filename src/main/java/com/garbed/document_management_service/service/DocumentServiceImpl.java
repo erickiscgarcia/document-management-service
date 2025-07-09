@@ -11,9 +11,11 @@ import com.garbed.document_management_service.util.CustomPage;
 import com.garbed.document_management_service.util.SystemConstants;
 import com.garbed.document_management_service.vo.DocumentRequest;
 import com.garbed.document_management_service.vo.DocumentResponse;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.errors.MinioException;
+import io.minio.http.Method;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -99,14 +101,27 @@ public class DocumentServiceImpl implements DocumentService {
               String objectPath = doc.getMinioPath();
 
               return Mono.fromCallable(
-                      () ->
-                          minioClient.getPresignedObjectUrl(
-                              io.minio.GetPresignedObjectUrlArgs.builder()
-                                  .bucket(bucket)
-                                  .object(objectPath)
-                                  .method(io.minio.http.Method.GET)
-                                  .expiry(60 * 10)
-                                  .build()))
+                      () -> {
+                        String presignedUrl =
+                            minioClient.getPresignedObjectUrl(
+                                GetPresignedObjectUrlArgs.builder()
+                                    .bucket(bucket)
+                                    .object(objectPath)
+                                    .method(Method.GET)
+                                    .expiry(60 * 10) // 10 minutos
+                                    .build());
+
+                        // Reemplaza el host interno por el público para que el navegador pueda
+                        // acceder
+                        String internalEndpoint = minioConfig.getEndpoint();
+                        String publicUrl = minioConfig.getPublicUrl();
+
+                        if (internalEndpoint != null && publicUrl != null) {
+                          presignedUrl = presignedUrl.replace(internalEndpoint, publicUrl);
+                        }
+
+                        return presignedUrl;
+                      })
                   .subscribeOn(Schedulers.boundedElastic());
             });
   }
@@ -218,33 +233,43 @@ public class DocumentServiceImpl implements DocumentService {
     String path = user + SystemConstants.Util.SLASH_CHAR + filename;
 
     return repository
-            .findByUserAndDocumentName(user, filename)
-            .switchIfEmpty(Mono.defer(() -> Mono.just(new Document())))
-            .flatMap(existingDoc -> {
+        .findByUserAndDocumentName(user, filename)
+        .switchIfEmpty(Mono.defer(() -> Mono.just(new Document())))
+        .flatMap(
+            existingDoc -> {
               boolean isNew = existingDoc.getId() == null;
 
-              return Mono.fromCallable(() ->
-                              File.createTempFile(SystemConstants.File.UPLOAD_PREFIX, SystemConstants.File.PDF_EXTENSION))
-                      .subscribeOn(Schedulers.boundedElastic())
-                      .flatMap(tempFile -> {
+              return Mono.fromCallable(
+                      () ->
+                          File.createTempFile(
+                              SystemConstants.File.UPLOAD_PREFIX,
+                              SystemConstants.File.PDF_EXTENSION))
+                  .subscribeOn(Schedulers.boundedElastic())
+                  .flatMap(
+                      tempFile -> {
                         Mono<Void> transfer = filePart.transferTo(tempFile);
-                          return transfer.then(
-                                Mono.fromCallable(() -> {
-                                  long fileSize = tempFile.length();
-                                  if (fileSize <= 0 || fileSize > maxFileSizeBytes) {
-                                    throw new MaxFileSizeException(SystemConstants.Exception.MAX_FILE_SIZE_EXCEPTION);
-                                  }
+                        return transfer.then(
+                            Mono.fromCallable(
+                                    () -> {
+                                      long fileSize = tempFile.length();
+                                      if (fileSize <= 0 || fileSize > maxFileSizeBytes) {
+                                        throw new MaxFileSizeException(
+                                            SystemConstants.Exception.MAX_FILE_SIZE_EXCEPTION);
+                                      }
 
-                                  Document doc = saveToMinioAndBuildEntity(metadata, filePart, tempFile, path);
-                                  if (!isNew) {
-                                    doc.setId(existingDoc.getId());
-                                  }
-                                  return doc;
-                                }).subscribeOn(Schedulers.boundedElastic()));
+                                      Document doc =
+                                          saveToMinioAndBuildEntity(
+                                              metadata, filePart, tempFile, path);
+                                      if (!isNew) {
+                                        doc.setId(existingDoc.getId());
+                                      }
+                                      return doc;
+                                    })
+                                .subscribeOn(Schedulers.boundedElastic()));
                       });
             })
-            .flatMap(repository::save)
-            .map(mapper::toDto);
+        .flatMap(repository::save)
+        .map(mapper::toDto);
   }
 
   /**
@@ -291,11 +316,17 @@ public class DocumentServiceImpl implements DocumentService {
   }
 
   /**
-   * @param metadata
-   * @param path
-   * @param fileSize
-   * @param contentType
-   * @return
+   * Builds a {@link Document} entity using the provided metadata and file attributes.
+   *
+   * <p>This method is typically used after a file has been uploaded successfully to MinIO. It
+   * assembles all necessary information (user, file metadata, path, size, type, etc.) into a {@link
+   * Document} object that can be stored in the database.
+   *
+   * @param metadata The request object containing user, document name, and tags.
+   * @param path The full path (MinIO key) where the file is stored.
+   * @param fileSize The size of the uploaded file in bytes.
+   * @param contentType The MIME type of the uploaded file (e.g., "application/pdf").
+   * @return A fully constructed {@link Document} entity with all relevant attributes.
    */
   private Document buildDocument(
       DocumentRequest metadata, String path, long fileSize, String contentType) {
